@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/crazygit/BinanceMarketMonitor/helper"
+	"github.com/crazygit/binance-market-monitor/helper"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 

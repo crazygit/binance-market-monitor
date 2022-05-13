@@ -1,4 +1,4 @@
-module github.com/crazygit/BinanceMarketMonitor
+module github.com/crazygit/binance-market-monitor
 
 go 1.18
 

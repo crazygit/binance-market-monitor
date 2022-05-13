@@ -1,7 +1,7 @@
 package log
 
 import (
-	"github.com/crazygit/BinanceMarketMonitor/helper"
+	"github.com/crazygit/binance-market-monitor/helper"
 	"github.com/sirupsen/logrus"
 	"os"
 )

@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 	"github.com/adshao/go-binance/v2"
-	"github.com/crazygit/BinanceMarketMonitor/helper"
-	l "github.com/crazygit/BinanceMarketMonitor/helper/log"
+	"github.com/crazygit/binance-market-monitor/helper"
+	l "github.com/crazygit/binance-market-monitor/helper/log"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
@@ -37,9 +37,12 @@ func (e ExtendWsMarketStatEvent) AlertText() string {
 *Symbol*: %s
 *PriceChangePercent*: %s
 *LastPrice*: %s
+
+%s
 `, escapeTextToMarkdownV2(prettySymbol(e.Symbol)),
 		escapeTextToMarkdownV2(prettyFloatString(e.PriceChangePercent)+"%"),
 		escapeTextToMarkdownV2("$"+prettyFloatString(e.LastPrice)),
+		escapeTextToMarkdownV2(fmt.Sprintf("(%s)", time.UnixMilli(e.Time))),
 	)
 }
 
@@ -74,6 +77,7 @@ func eventHandler(event *binance.WsMarketStatEvent) {
 		"PriceChange":        prettyFloatString(newEvent.LastPrice),
 		"PriceChangePercent": newEvent.PriceChangePercent,
 		"LastPrice":          prettyFloatString(newEvent.LastPrice),
+		"Time":               newEvent.Time,
 	}).Debug("Received Event")
 	if isNeedAlert(newEvent) {
 		if err := PostMessageToTgChannel(helper.GetRequiredStringEnv("TELEGRAM_CHANNEL_USERNAME"), newEvent.AlertText()); err != nil {
