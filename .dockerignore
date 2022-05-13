@@ -1,0 +1,6 @@
+.gitignore
+.dockerignore
+.git/
+.pre-commit-config.yaml
+.env
+.env.example
