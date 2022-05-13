@@ -42,7 +42,11 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          # 使用默认的GITHUB_TOKEN push镜像的时候一直报403
+          # password: ${{ secrets.GITHUB_TOKEN }}
+          # 使用自己创建的personal access token
+          # https://docs.github.com/en/actions/security-guides/automatic-token-authentication#modifying-the-permissions-for-the-github_token
+          password: ${{ secrets.CR_PAT }}
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
