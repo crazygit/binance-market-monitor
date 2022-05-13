@@ -100,16 +100,16 @@ func main() {
 		return baseAsset + quoteAsset
 	})
 	for {
-		log.Debug("Connect to binance...")
+		log.Info("Connect to binance...")
 		doneC, _, err := binance.WsCombinedMarketStatServe(symbols, eventHandler, errHandler)
 		if err != nil {
 			log.Error(err)
-			log.Debug("Connect Failed, Reconnect in 3 seconds")
+			log.Info("Connect Failed, Reconnect in 3 seconds")
 			time.Sleep(time.Second * 3)
 			continue
 		}
 		<-doneC
-		log.Debug("Disconnected, Reconnect in 3 seconds")
+		log.Info("Disconnected, Reconnect in 3 seconds")
 		time.Sleep(time.Second * 3)
 	}
 }
