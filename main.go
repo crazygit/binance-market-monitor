@@ -19,6 +19,7 @@ var (
 	quoteAsset                  = strings.ToUpper(helper.GetStringEnv("QUOTE_ASSET", "USDT"))
 	lowestPriceFilter           = helper.GetFloat64Env("LOWEST_PRICE_FILTER", 1.0)
 	priceChangePercentThreshold = helper.GetFloat64Env("PRICE_CHANGE_PERCENT_THRESHOLD", 5.0)
+	priceChangeThreshold        = helper.GetFloat64Env("PRICE_CHANGE_THRESHOLD", 0.5)
 )
 
 var lastAlert = map[string]ExtendWsMarketStatEvent{}
@@ -40,7 +41,7 @@ func getDifference(newValue, oldValue float64, suffix string) string {
 	if diff > 0 {
 		direction = "🔺"
 	}
-	return fmt.Sprintf("(%s %f%s)", direction, diff, suffix)
+	return fmt.Sprintf("(%s %.2f%s)", direction, math.Abs(diff), suffix)
 }
 
 func (newEvent ExtendWsMarketStatEvent) AlertText(oldEvent ExtendWsMarketStatEvent) string {
@@ -48,30 +49,31 @@ func (newEvent ExtendWsMarketStatEvent) AlertText(oldEvent ExtendWsMarketStatEve
 *交易对*: %s
 
 _最新报警信息_
-*最新成交价格*: %s
-*24小时价格变化百分比*: %s
-*最新成交价格上的成交量*: %s
+
+*成交价格*: %s
+*价格变化百分比*: %s
+*成交价格上的成交量*: %s
 *24小时内成交量*: %s
 *24小时内成交额*: %s
 
 _上次报警信息_
 
-*上次报警价格*: %s
-*上次价格变化百分比*: %s
-*上次价格上的成交量*: %s
+*成交价格*: %s
+*价格变化百分比*: %s
+*价格上的成交量*: %s
 
 两次报警间隔时间: %s
 `, escapeTextToMarkdownV2(prettySymbol(newEvent.Symbol)),
 
-		escapeTextToMarkdownV2("$"+prettyFloatString(newEvent.LastPrice)),          // 最新成交价格
-		escapeTextToMarkdownV2(prettyFloatString(newEvent.PriceChangePercent)+"%"), //  24小时价格变化(百分比)
-		escapeTextToMarkdownV2(prettyFloatString(newEvent.CloseQty)),               // 最新成交价格上的成交量
-		escapeTextToMarkdownV2(prettyFloatString(newEvent.BaseVolume)),             // 24小时内成交量
-		escapeTextToMarkdownV2(prettyFloatString(newEvent.QuoteVolume)),            // 24小时内成交额
+		escapeTextToMarkdownV2("$"+prettyFloatString(newEvent.LastPrice)+" "+getDifference(newEvent.LastPriceFloat, oldEvent.LastPriceFloat, "")),                          // 最新成交价格
+		escapeTextToMarkdownV2(prettyFloatString(newEvent.PriceChangePercent)+"% "+getDifference(newEvent.PriceChangePercentFloat, oldEvent.PriceChangePercentFloat, "%")), //  24小时价格变化(百分比)
+		escapeTextToMarkdownV2(prettyFloatString(newEvent.CloseQty)+" "+getDifference(newEvent.CloseQtyFloat, oldEvent.CloseQtyFloat, "")),                                 // 最新成交价格上的成交量
+		escapeTextToMarkdownV2(prettyFloatString(newEvent.BaseVolume)),                                                                                                     // 24小时内成交量
+		escapeTextToMarkdownV2(prettyFloatString(newEvent.QuoteVolume)),                                                                                                    // 24小时内成交额
 
-		escapeTextToMarkdownV2("$"+prettyFloatString(oldEvent.LastPrice)+" "+getDifference(newEvent.LastPriceFloat, oldEvent.LastPriceFloat, "")),                             //上次报警价格
-		escapeTextToMarkdownV2(prettyFloatString(oldEvent.PriceChangePercent)+"%"+" "+getDifference(newEvent.PriceChangePercentFloat, oldEvent.PriceChangePercentFloat, "%")), //上次价格变化百分比
-		escapeTextToMarkdownV2("$"+prettyFloatString(oldEvent.CloseQty)+" "+getDifference(newEvent.CloseQtyFloat, oldEvent.CloseQtyFloat, "")),                                //上次价格上的成交量
+		escapeTextToMarkdownV2("$"+prettyFloatString(oldEvent.LastPrice)),          //上次报警价格
+		escapeTextToMarkdownV2(prettyFloatString(oldEvent.PriceChangePercent)+"%"), //上次价格变化百分比
+		escapeTextToMarkdownV2("$"+prettyFloatString(oldEvent.CloseQty)),           //上次价格上的成交量
 
 		escapeTextToMarkdownV2(time.UnixMilli(newEvent.Time).Truncate(time.Second).Sub(time.UnixMilli(oldEvent.Time).Truncate(time.Second)).String()), //两次报警间隔时间
 	)
@@ -93,7 +95,7 @@ func prettySymbol(symbol string) string {
 
 func isNeedAlert(newEvent ExtendWsMarketStatEvent) bool {
 	if oldEvent, ok := lastAlert[newEvent.Symbol]; ok {
-		return math.Abs(oldEvent.PriceChangePercentFloat-newEvent.PriceChangePercentFloat) >= priceChangePercentThreshold
+		return math.Abs(newEvent.PriceChangePercentFloat-oldEvent.PriceChangePercentFloat) >= priceChangePercentThreshold && (newEvent.LastPriceFloat-oldEvent.LastPriceFloat >= priceChangeThreshold)
 	} else {
 		// 首次启动时会触发大量报警，忽略程序启动时,波动已经大于预设值的报警
 		//return math.Abs(newEvent.PriceChangePercentFloat) >= priceChangePercentThreshold
