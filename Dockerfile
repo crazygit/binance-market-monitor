@@ -27,8 +27,11 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /build/binance-market-monitor .
 
 
-ENV ENVIRONMENT=production \
-    TELEGRAM_API_TOKEN= \
-    TELEGRAM_CHANNEL_USERNAME=
+ENV TELEGRAM_API_TOKEN \
+    TELEGRAM_CHANNEL_USERNAME \
+    ENVIRONMENT=production \
+    QUOTE_ASSET=USDT \
+    LOWEST_PRICE_FILTER=1.0 \
+    PRICE_CHANGE_PERCENT_THRESHOLD=5.0
 
 CMD ["/app/binance-market-monitor"]

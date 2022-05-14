@@ -1,0 +1,13 @@
+version: "3.8"
+
+services:
+  binance-market-monitor:
+    image: ghcr.io/crazygit/binance-market-monitor:latest
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT}
+      TELEGRAM_API_TOKEN: ${TELEGRAM_API_TOKEN}
+      TELEGRAM_CHANNEL_USERNAME: ${TELEGRAM_CHANNEL_USERNAME}
+      QUOTE_ASSET: ${QUOTE_ASSET}
+      LOWEST_PRICE_FILTER: ${LOWEST_PRICE_FILTER}
+      PRICE_CHANGE_PERCENT_THRESHOLD: ${PRICE_CHANGE_PERCENT_THRESHOLD}
