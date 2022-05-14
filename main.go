@@ -26,13 +26,24 @@ var lastAlert = map[string]ExtendWsMarketStatEvent{}
 type ExtendWsMarketStatEvent struct {
 	*binance.WsMarketStatEvent
 	PriceChangePercentFloat float64
+	LastPriceFloat          float64
+	CloseQtyFloat           float64
 }
 
 func escapeTextToMarkdownV2(text string) string {
 	return tgbotapi.EscapeText(tgbotapi.ModeMarkdownV2, text)
 }
 
-func (e ExtendWsMarketStatEvent) AlertText(oldEvent ExtendWsMarketStatEvent) string {
+func getDifference(newValue, oldValue float64, suffix string) string {
+	diff := newValue - oldValue
+	direction := "🔻"
+	if diff > 0 {
+		direction = "🔺"
+	}
+	return fmt.Sprintf("(%s %f%s)", direction, diff, suffix)
+}
+
+func (newEvent ExtendWsMarketStatEvent) AlertText(oldEvent ExtendWsMarketStatEvent) string {
 	return fmt.Sprintf(`
 *交易对*: %s
 
@@ -50,20 +61,19 @@ _上次报警信息_
 *上次价格上的成交量*: %s
 
 两次报警间隔时间: %s
+`, escapeTextToMarkdownV2(prettySymbol(newEvent.Symbol)),
 
-`, escapeTextToMarkdownV2(prettySymbol(e.Symbol)),
+		escapeTextToMarkdownV2("$"+prettyFloatString(newEvent.LastPrice)),          // 最新成交价格
+		escapeTextToMarkdownV2(prettyFloatString(newEvent.PriceChangePercent)+"%"), //  24小时价格变化(百分比)
+		escapeTextToMarkdownV2(prettyFloatString(newEvent.CloseQty)),               // 最新成交价格上的成交量
+		escapeTextToMarkdownV2(prettyFloatString(newEvent.BaseVolume)),             // 24小时内成交量
+		escapeTextToMarkdownV2(prettyFloatString(newEvent.QuoteVolume)),            // 24小时内成交额
 
-		escapeTextToMarkdownV2("$"+prettyFloatString(e.LastPrice)),          // 最新成交价格
-		escapeTextToMarkdownV2(prettyFloatString(e.PriceChangePercent)+"%"), //  24小时价格变化(百分比)
-		escapeTextToMarkdownV2(prettyFloatString(e.CloseQty)),               // 最新成交价格上的成交量
-		escapeTextToMarkdownV2(prettyFloatString(e.BaseVolume)),             // 24小时内成交量
-		escapeTextToMarkdownV2(prettyFloatString(e.QuoteVolume)),            // 24小时内成交额
+		escapeTextToMarkdownV2("$"+prettyFloatString(oldEvent.LastPrice)+" "+getDifference(newEvent.LastPriceFloat, oldEvent.LastPriceFloat, "")),                             //上次报警价格
+		escapeTextToMarkdownV2(prettyFloatString(oldEvent.PriceChangePercent)+"%"+" "+getDifference(newEvent.PriceChangePercentFloat, oldEvent.PriceChangePercentFloat, "%")), //上次价格变化百分比
+		escapeTextToMarkdownV2("$"+prettyFloatString(oldEvent.CloseQty)+" "+getDifference(newEvent.CloseQtyFloat, oldEvent.CloseQtyFloat, "")),                                //上次价格上的成交量
 
-		escapeTextToMarkdownV2("$"+prettyFloatString(oldEvent.LastPrice)),          //上次报警价格
-		escapeTextToMarkdownV2(prettyFloatString(oldEvent.PriceChangePercent)+"%"), //上次价格变化百分比
-		escapeTextToMarkdownV2("$"+prettyFloatString(oldEvent.CloseQty)),           //上次价格上的成交量
-
-		escapeTextToMarkdownV2(time.UnixMilli(e.Time).Truncate(time.Second).Sub(time.UnixMilli(oldEvent.Time).Truncate(time.Second)).String()), //两次报警间隔时间
+		escapeTextToMarkdownV2(time.UnixMilli(newEvent.Time).Truncate(time.Second).Sub(time.UnixMilli(oldEvent.Time).Truncate(time.Second)).String()), //两次报警间隔时间
 	)
 }
 
@@ -109,7 +119,14 @@ func eventHandler(events binance.WsAllMarketsStatEvent) {
 			continue
 		}
 		priceChangePercentFloat, _ := strconv.ParseFloat(event.PriceChangePercent, 64)
-		newEvent := ExtendWsMarketStatEvent{WsMarketStatEvent: event, PriceChangePercentFloat: priceChangePercentFloat}
+		lastPriceFloat, _ := strconv.ParseFloat(event.LastPrice, 64)
+		closeQtyFloat, _ := strconv.ParseFloat(event.CloseQty, 64)
+		newEvent := ExtendWsMarketStatEvent{
+			WsMarketStatEvent:       event,
+			PriceChangePercentFloat: priceChangePercentFloat,
+			LastPriceFloat:          lastPriceFloat,
+			CloseQtyFloat:           closeQtyFloat,
+		}
 		log.WithFields(logrus.Fields{
 			"Symbol":             newEvent.Symbol,
 			"PriceChange":        prettyFloatString(newEvent.LastPrice),
