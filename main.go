@@ -32,14 +32,38 @@ func escapeTextToMarkdownV2(text string) string {
 	return tgbotapi.EscapeText(tgbotapi.ModeMarkdownV2, text)
 }
 
-func (e ExtendWsMarketStatEvent) AlertText() string {
+func (e ExtendWsMarketStatEvent) AlertText(oldEvent ExtendWsMarketStatEvent) string {
 	return fmt.Sprintf(`
-*Symbol*: %s
-*PriceChangePercent*: %s
-*LastPrice*: %s
+*交易对*: %s
+
+_最新报警信息_
+*最新成交价格*: %s
+*24小时价格变化百分比*: %s
+*最新成交价格上的成交量*: %s
+*24小时内成交量*: %s
+*24小时内成交额*: %s
+
+_上次报警信息_
+
+*上次报警价格*: %s
+*上次价格变化百分比*: %s
+*上次价格上的成交量*: %s
+
+两次报警间隔时间: %s
+
 `, escapeTextToMarkdownV2(prettySymbol(e.Symbol)),
-		escapeTextToMarkdownV2(prettyFloatString(e.PriceChangePercent)+"%"),
-		escapeTextToMarkdownV2("$"+prettyFloatString(e.LastPrice)),
+
+		escapeTextToMarkdownV2("$"+prettyFloatString(e.LastPrice)),          // 最新成交价格
+		escapeTextToMarkdownV2(prettyFloatString(e.PriceChangePercent)+"%"), //  24小时价格变化(百分比)
+		escapeTextToMarkdownV2(prettyFloatString(e.CloseQty)),               // 最新成交价格上的成交量
+		escapeTextToMarkdownV2(prettyFloatString(e.BaseVolume)),             // 24小时内成交量
+		escapeTextToMarkdownV2(prettyFloatString(e.QuoteVolume)),            // 24小时内成交额
+
+		escapeTextToMarkdownV2("$"+prettyFloatString(oldEvent.LastPrice)),          //上次报警价格
+		escapeTextToMarkdownV2(prettyFloatString(oldEvent.PriceChangePercent)+"%"), //上次价格变化百分比
+		escapeTextToMarkdownV2("$"+prettyFloatString(oldEvent.CloseQty)),           //上次价格上的成交量
+
+		escapeTextToMarkdownV2(time.UnixMilli(e.Time).Truncate(time.Second).Sub(time.UnixMilli(oldEvent.Time).Truncate(time.Second)).String()), //两次报警间隔时间
 	)
 }
 
@@ -79,6 +103,7 @@ func isIgnoreEvent(event *binance.WsMarketStatEvent) bool {
 func eventHandler(events binance.WsAllMarketsStatEvent) {
 	var postMessageTextBuilder strings.Builder
 	var postMessage = false
+	log.WithFields(logrus.Fields{"SymbolsInAlertMap": len(lastAlert), "RevivedEventsNumber": len(events)}).Info("Stats")
 	for _, event := range events {
 		if isIgnoreEvent(event) {
 			continue
@@ -93,7 +118,7 @@ func eventHandler(events binance.WsAllMarketsStatEvent) {
 			"Time":               newEvent.Time,
 		}).Debug("Received Event")
 		if isNeedAlert(newEvent) {
-			postMessageTextBuilder.WriteString(newEvent.AlertText())
+			postMessageTextBuilder.WriteString(newEvent.AlertText(lastAlert[newEvent.Symbol]))
 			lastAlert[newEvent.Symbol] = newEvent
 			postMessage = true
 		}
