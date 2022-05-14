@@ -23,6 +23,8 @@
 设置本地环境变量
 
 ```shell
+$ git clone https://github.com/crazygit/binance-market-monitor.git
+$ cd binance-market-monitor
 $ cp .env.example .env
 ```
 
