@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   binance-market-monitor:
-    image: ghcr.io/crazygit/binance-market-monitor:latest
+    image: crazygit/binance-market-monitor:latest
     restart: unless-stopped
     environment:
       ENVIRONMENT: ${ENVIRONMENT}
