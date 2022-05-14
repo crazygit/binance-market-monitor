@@ -61,7 +61,10 @@ func isNeedAlert(newEvent ExtendWsMarketStatEvent) bool {
 	if oldEvent, ok := lastAlert[newEvent.Symbol]; ok {
 		return math.Abs(oldEvent.PriceChangePercentFloat-newEvent.PriceChangePercentFloat) >= priceChangePercentThreshold
 	} else {
-		return math.Abs(newEvent.PriceChangePercentFloat) >= priceChangePercentThreshold
+		// 首次启动时会触发大量报警，忽略程序启动时,波动已经大于预设值的报警
+		//return math.Abs(newEvent.PriceChangePercentFloat) >= priceChangePercentThreshold
+		lastAlert[newEvent.Symbol] = newEvent
+		return false
 	}
 }
 
@@ -96,7 +99,7 @@ func eventHandler(events binance.WsAllMarketsStatEvent) {
 		}
 	}
 	if postMessage {
-		postMessageTextBuilder.WriteString(fmt.Sprintf("\n\n%s", escapeTextToMarkdownV2(fmt.Sprintf("(%s)", time.Now()))))
+		postMessageTextBuilder.WriteString(fmt.Sprintf("\n\n%s", escapeTextToMarkdownV2(fmt.Sprintf("(%s)", time.Now().Format(time.RFC3339)))))
 		if err := PostMessageToTgChannel(getTelegramChannelName(), postMessageTextBuilder.String()); err != nil {
 			log.WithField("Error", err).Error("Post message to tg channel failed")
 		}
