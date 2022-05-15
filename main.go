@@ -20,6 +20,7 @@ var (
 	lowestPriceFilter           = helper.GetFloat64Env("LOWEST_PRICE_FILTER", 1.0)
 	priceChangePercentThreshold = helper.GetFloat64Env("PRICE_CHANGE_PERCENT_THRESHOLD", 5.0)
 	priceChangeThreshold        = helper.GetFloat64Env("PRICE_CHANGE_THRESHOLD", 0.5)
+	closeQtyThreshold           = helper.GetFloat64Env("CLOSE_QTY_THRESHOLD", 1000)
 )
 
 var lastAlert = map[string]ExtendWsMarketStatEvent{}
@@ -73,7 +74,7 @@ _上次报警信息_
 
 		escapeTextToMarkdownV2("$"+prettyFloatString(oldEvent.LastPrice)),          //上次报警价格
 		escapeTextToMarkdownV2(prettyFloatString(oldEvent.PriceChangePercent)+"%"), //上次价格变化百分比
-		escapeTextToMarkdownV2("$"+prettyFloatString(oldEvent.CloseQty)),           //上次价格上的成交量
+		escapeTextToMarkdownV2(prettyFloatString(oldEvent.CloseQty)),               //上次价格上的成交量
 
 		escapeTextToMarkdownV2(time.UnixMilli(newEvent.Time).Truncate(time.Second).Sub(time.UnixMilli(oldEvent.Time).Truncate(time.Second)).String()), //两次报警间隔时间
 	)
@@ -95,7 +96,7 @@ func prettySymbol(symbol string) string {
 
 func isNeedAlert(newEvent ExtendWsMarketStatEvent) bool {
 	if oldEvent, ok := lastAlert[newEvent.Symbol]; ok {
-		return math.Abs(newEvent.PriceChangePercentFloat-oldEvent.PriceChangePercentFloat) >= priceChangePercentThreshold && (newEvent.LastPriceFloat-oldEvent.LastPriceFloat >= priceChangeThreshold)
+		return math.Abs(newEvent.PriceChangePercentFloat-oldEvent.PriceChangePercentFloat) >= priceChangePercentThreshold && (newEvent.LastPriceFloat-oldEvent.LastPriceFloat >= priceChangeThreshold) && (newEvent.CloseQtyFloat >= closeQtyThreshold)
 	} else {
 		// 首次启动时会触发大量报警，忽略程序启动时,波动已经大于预设值的报警
 		//return math.Abs(newEvent.PriceChangePercentFloat) >= priceChangePercentThreshold
