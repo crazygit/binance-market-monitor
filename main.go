@@ -16,11 +16,7 @@ import (
 var log = l.GetLog()
 
 var (
-	quoteAsset                  = strings.ToUpper(helper.GetStringEnv("QUOTE_ASSET", "USDT"))
-	lowestPriceFilter           = helper.GetFloat64Env("LOWEST_PRICE_FILTER", 1.0)
-	priceChangePercentThreshold = helper.GetFloat64Env("PRICE_CHANGE_PERCENT_THRESHOLD", 5.0)
-	priceChangeThreshold        = helper.GetFloat64Env("PRICE_CHANGE_THRESHOLD", 0.5)
-	closeQtyThreshold           = helper.GetFloat64Env("CLOSE_QTY_THRESHOLD", 1000)
+	quoteAsset = strings.ToUpper(helper.GetStringEnv("QUOTE_ASSET", "USDT"))
 )
 
 var lastAlert = map[string]ExtendWsMarketStatEvent{}
@@ -42,7 +38,7 @@ func getDifference(newValue, oldValue float64, suffix string) string {
 	if diff > 0 {
 		direction = "🔺"
 	}
-	return fmt.Sprintf("(%s %.2f%s)", direction, math.Abs(diff), suffix)
+	return fmt.Sprintf("(%s%.2f%s)", direction, math.Abs(diff), suffix)
 }
 
 func (newEvent ExtendWsMarketStatEvent) AlertText(oldEvent ExtendWsMarketStatEvent) string {
@@ -96,21 +92,24 @@ func prettySymbol(symbol string) string {
 
 func isNeedAlert(newEvent ExtendWsMarketStatEvent) bool {
 	if oldEvent, ok := lastAlert[newEvent.Symbol]; ok {
-		return math.Abs(newEvent.PriceChangePercentFloat-oldEvent.PriceChangePercentFloat) >= priceChangePercentThreshold && (newEvent.LastPriceFloat-oldEvent.LastPriceFloat >= priceChangeThreshold) && (newEvent.CloseQtyFloat >= closeQtyThreshold)
+		priceChangePercent := math.Abs(newEvent.PriceChangePercentFloat - oldEvent.PriceChangePercentFloat)
+		if newEvent.LastPriceFloat <= 1 && priceChangePercent >= 25 {
+			return true
+		} else if newEvent.LastPriceFloat >= 300 && priceChangePercent >= 6 {
+			return true
+		} else if newEvent.LastPriceFloat > 1 && newEvent.LastPriceFloat >= 300 && priceChangePercent >= 15 {
+			return true
+		}
+		return false
 	} else {
 		// 首次启动时会触发大量报警，忽略程序启动时,波动已经大于预设值的报警
-		//return math.Abs(newEvent.PriceChangePercentFloat) >= priceChangePercentThreshold
 		lastAlert[newEvent.Symbol] = newEvent
 		return false
 	}
 }
 
 func isIgnoreEvent(event *binance.WsMarketStatEvent) bool {
-	weightedAvgPrice, _ := strconv.ParseFloat(event.WeightedAvgPrice, 64)
-	if !strings.HasSuffix(event.Symbol, quoteAsset) || weightedAvgPrice < lowestPriceFilter {
-		return true
-	}
-	return false
+	return !strings.HasSuffix(event.Symbol, quoteAsset)
 }
 
 func eventHandler(events binance.WsAllMarketsStatEvent) {
@@ -136,6 +135,7 @@ func eventHandler(events binance.WsAllMarketsStatEvent) {
 			"PriceChangePercent": newEvent.PriceChangePercent,
 			"LastPrice":          prettyFloatString(newEvent.LastPrice),
 			"Time":               newEvent.Time,
+			"CloseQty":           prettyFloatString(newEvent.CloseQty),
 		}).Debug("Received Event")
 		if isNeedAlert(newEvent) {
 			postMessageTextBuilder.WriteString(newEvent.AlertText(lastAlert[newEvent.Symbol]))

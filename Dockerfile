@@ -30,10 +30,7 @@ COPY --from=builder /build/binance-market-monitor .
 ENV TELEGRAM_API_TOKEN \
     TELEGRAM_CHANNEL_USERNAME \
     ENVIRONMENT=production \
-    QUOTE_ASSET=USDT \
-    LOWEST_PRICE_FILTER=1.0 \
-    PRICE_CHANGE_PERCENT_THRESHOLD=5.0 \
-    PRICE_CHANGE_THRESHOLD=0.5 \
-    CLOSE_QTY_THRESHOLD=1000
+    QUOTE_ASSET=USDT
+
 
 CMD ["/app/binance-market-monitor"]
