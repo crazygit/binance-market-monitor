@@ -21,6 +21,7 @@ func init() {
 func PostMessageToTgChannel(username, text string) error {
 	msg := tgbotapi.NewMessageToChannel(username, text)
 	msg.ParseMode = tgbotapi.ModeMarkdownV2
+	msg.DisableWebPagePreview = true
 	if helper.IsProductionEnvironment() {
 		response, err := tgBot.Send(msg)
 		log.WithField("response", response).Info("Post returned message")

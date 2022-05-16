@@ -15,6 +15,9 @@ import (
 
 var log = l.GetLog()
 
+// 报警间隔时间10min
+const alertDurationMilli = 10 * 60 * 1000
+
 var (
 	quoteAsset = strings.ToUpper(helper.GetStringEnv("QUOTE_ASSET", "USDT"))
 )
@@ -28,20 +31,17 @@ type ExtendWsMarketStatEvent struct {
 	CloseQtyFloat           float64
 }
 
-func escapeTextToMarkdownV2(text string) string {
-	return tgbotapi.EscapeText(tgbotapi.ModeMarkdownV2, text)
+func (e ExtendWsMarketStatEvent) url() string {
+	return fmt.Sprintf("https://www.binance.com/zh-CN/trade/%s?theme=dark&type=spot", e.PrettySymbol("_"))
 }
 
-func getDifference(newValue, oldValue float64, suffix string) string {
-	diff := newValue - oldValue
-	direction := "🔻"
-	if diff > 0 {
-		direction = "🔺"
-	}
-	return fmt.Sprintf("(%s%.2f%s)", direction, math.Abs(diff), suffix)
+func (e ExtendWsMarketStatEvent) PrettySymbol(separator string) string {
+	var replacer *strings.Replacer
+	replacer = strings.NewReplacer(quoteAsset, fmt.Sprintf("%s%s", separator, quoteAsset))
+	return replacer.Replace(e.Symbol)
 }
 
-func (newEvent ExtendWsMarketStatEvent) AlertText(oldEvent ExtendWsMarketStatEvent) string {
+func (e ExtendWsMarketStatEvent) AlertText(oldEvent ExtendWsMarketStatEvent) string {
 	return fmt.Sprintf(`
 *交易对*: %s
 
@@ -60,20 +60,36 @@ _上次报警信息_
 *价格上的成交量*: %s
 
 两次报警间隔时间: %s
-`, escapeTextToMarkdownV2(prettySymbol(newEvent.Symbol)),
 
-		escapeTextToMarkdownV2("$"+prettyFloatString(newEvent.LastPrice)+" "+getDifference(newEvent.LastPriceFloat, oldEvent.LastPriceFloat, "")),                          // 最新成交价格
-		escapeTextToMarkdownV2(prettyFloatString(newEvent.PriceChangePercent)+"% "+getDifference(newEvent.PriceChangePercentFloat, oldEvent.PriceChangePercentFloat, "%")), //  24小时价格变化(百分比)
-		escapeTextToMarkdownV2(prettyFloatString(newEvent.CloseQty)+" "+getDifference(newEvent.CloseQtyFloat, oldEvent.CloseQtyFloat, "")),                                 // 最新成交价格上的成交量
-		escapeTextToMarkdownV2(prettyFloatString(newEvent.BaseVolume)),                                                                                                     // 24小时内成交量
-		escapeTextToMarkdownV2(prettyFloatString(newEvent.QuoteVolume)),                                                                                                    // 24小时内成交额
+[详情](%s)
+`, escapeTextToMarkdownV2(e.PrettySymbol("/")),
+
+		escapeTextToMarkdownV2("$"+prettyFloatString(e.LastPrice)+" "+getDifference(e.LastPriceFloat, oldEvent.LastPriceFloat, "")),                          // 最新成交价格
+		escapeTextToMarkdownV2(prettyFloatString(e.PriceChangePercent)+"% "+getDifference(e.PriceChangePercentFloat, oldEvent.PriceChangePercentFloat, "%")), //  24小时价格变化(百分比)
+		escapeTextToMarkdownV2(prettyFloatString(e.CloseQty)+" "+getDifference(e.CloseQtyFloat, oldEvent.CloseQtyFloat, "")),                                 // 最新成交价格上的成交量
+		escapeTextToMarkdownV2(prettyFloatString(e.BaseVolume)),                                                                                              // 24小时内成交量
+		escapeTextToMarkdownV2(prettyFloatString(e.QuoteVolume)),                                                                                             // 24小时内成交额
 
 		escapeTextToMarkdownV2("$"+prettyFloatString(oldEvent.LastPrice)),          //上次报警价格
 		escapeTextToMarkdownV2(prettyFloatString(oldEvent.PriceChangePercent)+"%"), //上次价格变化百分比
 		escapeTextToMarkdownV2(prettyFloatString(oldEvent.CloseQty)),               //上次价格上的成交量
 
-		escapeTextToMarkdownV2(time.UnixMilli(newEvent.Time).Truncate(time.Second).Sub(time.UnixMilli(oldEvent.Time).Truncate(time.Second)).String()), //两次报警间隔时间
+		escapeTextToMarkdownV2(time.UnixMilli(e.Time).Truncate(time.Second).Sub(time.UnixMilli(oldEvent.Time).Truncate(time.Second)).String()), //两次报警间隔时间
+		e.url(), //链接
 	)
+}
+
+func escapeTextToMarkdownV2(text string) string {
+	return tgbotapi.EscapeText(tgbotapi.ModeMarkdownV2, text)
+}
+
+func getDifference(newValue, oldValue float64, suffix string) string {
+	diff := newValue - oldValue
+	direction := "🔻"
+	if diff > 0 {
+		direction = "🔺"
+	}
+	return fmt.Sprintf("(%s%.2f%s)", direction, math.Abs(diff), suffix)
 }
 
 func prettyFloatString(value string) string {
@@ -84,21 +100,18 @@ func prettyFloatString(value string) string {
 	}
 }
 
-func prettySymbol(symbol string) string {
-	var replacer *strings.Replacer
-	replacer = strings.NewReplacer(quoteAsset, fmt.Sprintf("/%s", quoteAsset))
-	return replacer.Replace(symbol)
-}
-
 func isNeedAlert(newEvent ExtendWsMarketStatEvent) bool {
 	if oldEvent, ok := lastAlert[newEvent.Symbol]; ok {
 		priceChangePercent := math.Abs(newEvent.PriceChangePercentFloat - oldEvent.PriceChangePercentFloat)
-		if newEvent.LastPriceFloat <= 1 && priceChangePercent >= 25 {
-			return true
-		} else if newEvent.LastPriceFloat >= 300 && priceChangePercent >= 6 {
-			return true
-		} else if newEvent.LastPriceFloat > 1 && newEvent.LastPriceFloat >= 300 && priceChangePercent >= 15 {
-			return true
+		duration := newEvent.Time - oldEvent.Time
+		if duration > alertDurationMilli {
+			if newEvent.LastPriceFloat <= 1 && priceChangePercent >= 25 {
+				return true
+			} else if newEvent.LastPriceFloat >= 300 && priceChangePercent >= 6 {
+				return true
+			} else if newEvent.LastPriceFloat > 1 && newEvent.LastPriceFloat >= 300 && priceChangePercent >= 15 {
+				return true
+			}
 		}
 		return false
 	} else {
