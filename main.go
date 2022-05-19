@@ -105,7 +105,7 @@ func isNeedAlert(newEvent ExtendWsMarketStatEvent) bool {
 		priceChangePercent := math.Abs(newEvent.PriceChangePercentFloat - oldEvent.PriceChangePercentFloat)
 		duration := newEvent.Time - oldEvent.Time
 		if duration > alertDurationMilli {
-			if newEvent.LastPriceFloat <= 1 && priceChangePercent >= 25 {
+			if newEvent.LastPriceFloat <= 1 && priceChangePercent >= 50 {
 				return true
 			} else if newEvent.LastPriceFloat >= 300 && priceChangePercent >= 6 {
 				return true
